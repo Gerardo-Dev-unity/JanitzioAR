@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <title>WebAR Fireworks — MindAR + A-Frame (raw three.js)</title>
+
+  <!-- A-Frame y MindAR desde CDN -->
+  <script src="https://unpkg.com/aframe@1.4.2/dist/aframe.min.js"></script>
+  <script src="https://unpkg.com/mind-ar@1.1.0/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;}
+    #ui{position:fixed;left:8px;top:8px;z-index:10;background:rgba(0,0,0,.55);padding:8px 10px;border-radius:8px;backdrop-filter: blur(4px);}
+    #ui b{display:block;margin-bottom:4px}
+    a-scene{width:100%;height:100vh;}
+    .hint{opacity:.85;font-size:12px}
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <b>WebAR Fireworks</b>
+    1) Permite la cámara.<br/>
+    2) Apunta a tu imagen objetivo.<br/>
+    <div class="hint">Tip: imprime la imagen o muéstrala en otra pantalla.</div>
+  </div>
+
+  <a-scene
+    mindar-image="imageTargetSrc: assets/targets.mind; maxTrack: 1;"
+    embedded
+    color-space="sRGB"
+    renderer="colorManagement: true, physicallyCorrectLights: true, antialias: true"
+    vr-mode-ui="enabled: false">
+
+    <!-- Cámara AR -->
+    <a-camera position="0 0 0"></a-camera>
+
+    <!-- Contenido AR anclado al target (index 0) -->
+    <a-entity id="anchor" mindar-image-target="targetIndex: 0">
+      <!-- Nuestro componente de fuegos artificiales -->
+      <a-entity id="fw" fireworks-raw="particles: 900; life: 1400; fadeStart: 800; gravity: -0.9; burstInterval: 1400"
+                position="0 0 0"></a-entity>
+    </a-entity>
+  </a-scene>
+
+  <script>
+  // =============== Componente A-Frame: 'fireworks-raw' ==================
+  // Genera ráfagas de partículas (THREE.Points) y las anima con gravedad+fade.
+  // Parámetros:
+  //  - particles:   cuántas partículas por ráfaga
+  //  - life:        vida de la ráfaga (ms)
+  //  - fadeStart:   cuándo empieza a desvanecer (ms)
+  //  - gravity:     aceleración vertical (negativo hacia abajo)
+  //  - burstInterval: cada cuántos ms se dispara una nueva ráfaga
+  AFRAME.registerComponent('fireworks-raw', {
+    schema: {
+      particles:     { default: 700 },
+      life:          { default: 1300 },
+      fadeStart:     { default: 800 },
+      gravity:       { default: -0.8 },
+      burstInterval: { default: 1500 }
+    },
+    init() {
+      const group = new THREE.Group();
+      this.el.setObject3D('fw', group);
+      this.group = group;
+      this.running = true;                 // control por targetFound/targetLost
+      this.nextBurst = 0;
+      // dispara una al inicio
+      this.makeBurst(performance.now());
+    },
+    remove() {
+      this.el.removeObject3D('fw');
+    },
+    // Crea una ráfaga esférica con velocidades aleatorias
+    makeBurst(now) {
+      const n = this.data.particles;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(n * 3);
+      const vel = new Float32Array(n * 3);
+
+      for (let i = 0; i < n; i++) {
+        // posición inicial en el origen (centro del target)
+        pos[3*i+0] = 0; pos[3*i+1] = 0; pos[3*i+2] = 0;
+
+        // vector velocidad aleatorio sobre una esfera
+        const r = 1 + Math.random()*1.6;             // velocidad radial
+        const u = Math.random();                      // para theta
+        const v = Math.random();                      // para phi
+        const theta = Math.acos(2*u - 1);            // [0,pi]
+        const phi   = 2*Math.PI*v;                   // [0,2pi]
+
+        vel[3*i+0] = r * Math.sin(theta) * Math.cos(phi);
+        vel[3*i+1] = r * Math.cos(theta);
+        vel[3*i+2] = r * Math.sin(theta) * Math.sin(phi);
+      }
+
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('velocity', new THREE.BufferAttribute(vel, 3));
+
+      // material de puntos; cambias size para “chispas” más grandes/pequeñas
+      const mat = new THREE.PointsMaterial({ size: 0.05, transparent: true, opacity: 1 });
+      const points = new THREE.Points(geo, mat);
+      points.userData.birth = now;
+      this.group.add(points);
+    },
+    // Se llama cada frame
+    tick(time, dt) {
+      if (!this.running) return;           // pausado si targetLost
+      if (!dt) return;
+      const g = this.group;
+      const gravity   = this.data.gravity;
+      const life      = this.data.life;
+      const fadeStart = this.data.fadeStart;
+
+      // actualizar todas las ráfagas vivas
+      for (let i = g.children.length - 1; i >= 0; i--) {
+        const p = g.children[i];
+        const geo = p.geometry;
+        const pos = geo.attributes.position.array;
+        const vel = geo.attributes.velocity.array;
+
+        // física simple
+        for (let j = 0; j < vel.length/3; j++) {
+          vel[3*j+1] += gravity * (dt/1000);           // gravedad en Y
+          pos[3*j+0] += vel[3*j+0] * (dt/1000);
+          pos[3*j+1] += vel[3*j+1] * (dt/1000);
+          pos[3*j+2] += vel[3*j+2] * (dt/1000);
+        }
+        geo.attributes.position.needsUpdate = true;
+
+        // desvanecer y retirar cuando cumpla vida
+        const age = time - p.userData.birth;
+        if (age > fadeStart) {
+          p.material.opacity = Math.max(0, 1 - (age - fadeStart)/(life - fadeStart));
+        }
+        if (age > life) {
+          g.remove(p);
+          geo.dispose();
+          p.material.dispose();
+        }
+      }
+
+      // ¿toca nueva ráfaga?
+      if (time >= this.nextBurst) {
+        this.makeBurst(time);
+        this.nextBurst = time + this.data.burstInterval;
+      }
+    },
+    pause() { this.running = false; },
+    play()  { this.running = true; }
+  });
+
+  // ===== Vincular a los eventos del image target =====
+  window.addEventListener('load', () => {
+    const anchor = document.getElementById('anchor');
+    const fw = document.getElementById('fw');
+
+    // Cuando el target entra en escena, reanuda partículas
+    anchor.addEventListener('targetFound', () => { fw.play(); });
+
+    // Cuando el target se pierde de vista, pausa (ahorra CPU/batería)
+    anchor.addEventListener('targetLost',  () => { fw.pause(); });
+  });
+  </script>
+</body>
+</html>
