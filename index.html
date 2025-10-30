@@ -3,10 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>AR.js — iOS Tap Start (Hiro)</title>
+  <title>Janitzio AR — Image Tracking (AR.js NFT)</title>
 
-  <!-- A-Frame + AR.js build (incluye A-Frame) -->
+  <!-- A-Frame + AR.js (build aframe) -->
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
+  <!-- Partículas para “fuegos artificiales” -->
+  <script src="https://unpkg.com/aframe-particle-system-component/dist/aframe-particle-system-component.min.js"></script>
 
   <style>
     html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto}
@@ -18,49 +20,76 @@
 </head>
 <body>
 
-  <!-- Tap-to-start para iOS -->
+  <!-- Tap-to-start (necesario en iOS) -->
   <div id="start">
     <h2 style="margin:0">Toca para iniciar AR</h2>
-    <div id="hint">Safari requiere una acción del usuario para activar la cámara.</div>
+    <div id="hint">iPhone requiere una acción del usuario para activar la cámara.</div>
     <button id="btn">Iniciar</button>
   </div>
 
+  <!-- UI simple -->
   <div id="ui" style="display:none">
-    <b>AR.js — Prueba iOS (Hiro)</b><br/>
+    <b>Janitzio AR</b><br/>
     1) Permite la cámara.<br/>
-    2) Apunta al <u>marcador HIRO</u> (muéstralo en otra pantalla o impreso).
+    2) Apunta a tu imagen objetivo.
   </div>
 
+  <!-- La escena se inyecta tras el tap -->
   <div id="root"></div>
 
   <script>
-    const root = document.getElementById('root');
     const start = document.getElementById('start');
-    const ui = document.getElementById('ui');
+    const ui    = document.getElementById('ui');
+    const root  = document.getElementById('root');
 
     document.getElementById('btn').addEventListener('click', () => {
-      // Oculta overlay y muestra UI
       start.style.display = 'none';
       ui.style.display = 'block';
 
-      // Inyecta la escena *después* del tap (desbloquea cámara en iOS)
+      // Inyectamos la escena después del tap (desbloquea cámara en iOS)
       root.innerHTML = `
         <a-scene
           embedded
           renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
           arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false">
 
-          <!-- Marcador Hiro (no necesitas archivos) -->
-          <a-marker preset="hiro">
-            <a-box position="0 0.5 0" depth="0.5" height="0.5" width="0.5" color="red"></a-box>
-            <a-entity position="0 1 0" animation="property: position; to: 0 1.4 0; dir: alternate; loop: true; dur: 700">
-              <a-sphere radius="0.06" color="#FFD54F"></a-sphere>
-            </a-entity>
-          </a-marker>
+          <!-- Tu imagen como NFT: OJO, la URL va SIN extensión -->
+          <a-nft
+            type="nft"
+            url="assets/janitzio"
+            smooth="true"
+            smoothCount="10"
+            smoothTolerance="0.01"
+            smoothThreshold="5">
 
+            <!-- Caja roja de prueba (verifica tracking inmediato) -->
+            <a-box position="0 0.5 0" depth="0.4" height="0.4" width="0.4" color="red"></a-box>
+
+            <!-- “Fuegos artificiales” con partículas -->
+            <a-entity position="0 0.8 0"
+              particle-system="preset: burst; particleCount: 700; size: 0.04; velocitySpread: 2 2 2; duration: 1.2; opacity: 0.95;">
+            </a-entity>
+
+            <!-- Segundo estallido alterno para ritmo -->
+            <a-entity position="0 1.1 0"
+              particle-system="preset: dust; type: sphere; particleCount: 500; size: 0.035; velocitySpread: 1.2 1.2 1.2; duration: 1.3; opacity: 0.9;">
+            </a-entity>
+
+          </a-nft>
+
+          <!-- Cámara -->
           <a-entity camera></a-entity>
         </a-scene>
       `;
+
+      // Opcional: cada 2s “reinicia” las partículas para ver explosiones continuas
+      setInterval(() => {
+        document.querySelectorAll('[particle-system]').forEach(e => {
+          const cfg = e.getAttribute('particle-system');
+          e.removeAttribute('particle-system');
+          requestAnimationFrame(()=> e.setAttribute('particle-system', cfg));
+        });
+      }, 1800);
     });
   </script>
 </body>
