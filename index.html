@@ -1,44 +1,61 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>AR.js NFT – Prueba</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>AR Test</title>
+
+  <!-- A-Frame 1.4.1 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.1/aframe.min.js"></script>
+
+  <!-- AR.js build para A-Frame (no mezclar con versiones viejas) -->
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+
   <style>
-    html,body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
-    a-scene { position:fixed; inset:0; }
-    /* opcional: mostrar un overlay de debug */
-    #debug { position:fixed; left:8px; bottom:8px; z-index:10; color:#0f0; font:12px/1.2 monospace; }
+    body, html { margin:0; padding:0; overflow:hidden; background:#000; }
+    .hud { position: fixed; bottom: 8px; left: 8px; right: 8px; 
+           color:#0f0; font: 14px/1.4 system-ui, sans-serif; opacity:.85; }
   </style>
-  <!-- A-Frame moderno -->
-  <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
-  <!-- AR.js para A-Frame (incluye worker) -->
-  <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.7/aframe/build/aframe-ar-nft.min.js"></script>
 </head>
 <body>
-  <div id="debug">Cargando… da permiso a la cámara.</div>
-
+  <!-- Escena sin VR UI y embebida, con AR.js desde webcam -->
   <a-scene
     vr-mode-ui="enabled: false"
-    renderer="alpha: true; antialias: true"
     embedded
-    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: true;">
-
-    <!-- Tu marcador NFT (carpeta con .iset/.fset/.fset3) -->
-    <!-- OJO con el path en GitHub Pages: suele ser /<repo>/ruta -->
-    <a-nft
-      type="nft"
-      url="./markerNFT_0"   <!-- sin extensión; sólo el prefijo -->
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance="0.01"
-      smoothThreshold="5">
-      <!-- Un objeto 3D simple para confirmar render -->
-      <a-box position="0 0 0" depth="0.5" height="0.5" width="0.5" material="opacity:0.8; metalness:0.2;"></a-box>
-    </a-nft>
-
-    <!-- Cámara normal de A-Frame (no marker-camera) -->
+    renderer="antialias: true; alpha: true"
+    arjs="sourceType: webcam; debugUIEnabled: false; 
+          trackingMethod: best; 
+          sourceWidth: 1280; sourceHeight: 720;">
+    
+    <!-- Cámara AR.js -->
     <a-entity camera></a-entity>
+
+    <!-- Ejemplo: modelo/box sobre marcador Hiro -->
+    <a-marker type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/patt.hiro">
+      <a-box position="0 0.5 0" depth="0.5" height="0.5" width="0.5" rotation="0 45 0"></a-box>
+    </a-marker>
+
+    <a-entity camera></a-entity> <!-- Asegúrate de tener SOLO UNA cámara. Si ves dos, borra una. -->
   </a-scene>
+
+  <div class="hud" id="status">cargando… da permiso a la cámara</div>
+
+  <script>
+    // Opcional: ver si el navegador permite y qué cámara elegiría
+    (async () => {
+      const status = document.getElementById('status');
+      try {
+        // Test breve para forzar permisos (evita si ya confías en AR.js)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }
+        });
+        stream.getTracks().forEach(t => t.stop());
+        status.textContent = 'cámara lista ✔️';
+      } catch (e) {
+        status.textContent = 'error cámara: ' + (e && e.name ? e.name : e);
+      }
+    })();
+  </script>
 </body>
 </html>
