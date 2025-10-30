@@ -1,95 +1,44 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-  <title>Janitzio AR — AR.js NFT (GitHub Pages fix)</title>
-
-  <!-- A-Frame (el mismo build de la doc NFT) -->
-  <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1c2407b26c61958baa93967b5412487cd94b290b/dist/aframe-master.min.js"></script>
-  <!-- AR.js NFT build -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>AR.js NFT – Prueba</title>
   <style>
-    html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui}
-    .arjs-loader{position:absolute;inset:0;background:rgba(0,0,0,.8);z-index:9998;display:flex;align-items:center;justify-content:center}
-    .arjs-loader div{color:#fff;font-size:1rem;text-align:center}
-    #overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#000;z-index:9999}
-    #btn{appearance:none;border:0;background:#16a34a;color:#fff;padding:12px 18px;border-radius:10px;font-weight:700}
-    #log{position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,.6);color:#0f0;padding:6px 8px;border-radius:8px;font:12px/1 monospace;z-index:9999}
-    a-scene{width:100%;height:100vh;display:none}
+    html,body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+    a-scene { position:fixed; inset:0; }
+    /* opcional: mostrar un overlay de debug */
+    #debug { position:fixed; left:8px; bottom:8px; z-index:10; color:#0f0; font:12px/1.2 monospace; }
   </style>
+  <!-- A-Frame moderno -->
+  <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
+  <!-- AR.js para A-Frame (incluye worker) -->
+  <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.7/aframe/build/aframe-ar-nft.min.js"></script>
 </head>
-<body style="margin:0; overflow:hidden;">
+<body>
+  <div id="debug">Cargando… da permiso a la cámara.</div>
 
-  <!-- Tap-to-start (iOS) -->
-  <div id="overlay">
-    <h2 style="margin:0">Toca para iniciar AR</h2>
-    <div style="opacity:.8">Solución de ruta absoluta + 640×480.</div>
-    <button id="btn">Iniciar</button>
-  </div>
-
-  <!-- Loader de AR.js (mientras carga los NFT) -->
-  <div class="arjs-loader" id="loader"><div>Cargando descriptores…</div></div>
-
-  <div id="log">Listo…</div>
-
-  <a-scene id="scene"
-    vr-mode-ui="enabled:false"
-    renderer="logarithmicDepthBuffer:true; antialias:true; precision:mediump;"
+  <a-scene
+    vr-mode-ui="enabled: false"
+    renderer="alpha: true; antialias: true"
     embedded
-    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled:false;
-          sourceWidth:640; sourceHeight:480; displayWidth:640; displayHeight:480;">
-    
-    <!-- 🔴 URL ABSOLUTA (¡sin extensión!) -->
+    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: true;">
+
+    <!-- Tu marcador NFT (carpeta con .iset/.fset/.fset3) -->
+    <!-- OJO con el path en GitHub Pages: suele ser /<repo>/ruta -->
     <a-nft
       type="nft"
-      url="https://gerardo-dev-unity.github.io/JanitzioAR/assets/janitzio"
+      url="./markerNFT_0"   <!-- sin extensión; sólo el prefijo -->
       smooth="true"
       smoothCount="10"
       smoothTolerance="0.01"
       smoothThreshold="5">
-      <a-box position="0 0.5 0" depth="0.4" height="0.4" width="0.4" color="red"></a-box>
+      <!-- Un objeto 3D simple para confirmar render -->
+      <a-box position="0 0 0" depth="0.5" height="0.5" width="0.5" material="opacity:0.8; metalness:0.2;"></a-box>
     </a-nft>
 
+    <!-- Cámara normal de A-Frame (no marker-camera) -->
     <a-entity camera></a-entity>
   </a-scene>
-
-  <script>
-    const overlay = document.getElementById('overlay');
-    const btn     = document.getElementById('btn');
-    const scene   = document.getElementById('scene');
-    const loader  = document.getElementById('loader');
-    const logBox  = document.getElementById('log');
-    const log = m => { console.log(m); logBox.textContent = m; };
-
-    btn.addEventListener('click', () => {
-      overlay.style.display = 'none';
-      scene.style.display   = 'block';
-      log('Inicializando cámara y cargando NFT…');
-
-      // Loguea estado del <video> que crea AR.js
-      let tries = 0;
-      const iv = setInterval(() => {
-        const vid = document.querySelector('video');
-        tries++;
-        if (vid) {
-          clearInterval(iv);
-          vid.setAttribute('playsinline',''); vid.setAttribute('muted','');
-          vid.addEventListener('loadedmetadata', () => log(`✅ video loadedmetadata — ${vid.videoWidth}×${vid.videoHeight}`));
-          vid.addEventListener('canplay',        () => log(`✅ canplay — ${vid.videoWidth}×${vid.videoHeight}`));
-          setTimeout(()=> {
-            const s = ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'];
-            log(`readyState=${s[vid.readyState]||vid.readyState} — ${vid.videoWidth}×${vid.videoHeight}`);
-          }, 1200);
-        } else if (tries > 40) {
-          clearInterval(iv);
-          log('❌ No se encontró video (AR.js no inicializó la cámara)');
-        }
-      }, 100);
-    });
-
-    document.addEventListener('renderstart', () => { loader.style.display='none'; });
-  </script>
 </body>
 </html>
