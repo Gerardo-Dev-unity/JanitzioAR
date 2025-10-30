@@ -3,59 +3,70 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>AR Test</title>
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>AR.js + A-Frame estable</title>
 
-  <!-- A-Frame 1.4.1 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.1/aframe.min.js"></script>
+  <!-- A-Frame 1.2.0 (compatible con AR.js aframe build) -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.2.0/dist/aframe.min.js"></script>
 
-  <!-- AR.js build para A-Frame (no mezclar con versiones viejas) -->
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+  <!-- AR.js (aframe build) -->
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/aframe/build/aframe-ar.js"></script>
 
   <style>
-    body, html { margin:0; padding:0; overflow:hidden; background:#000; }
-    .hud { position: fixed; bottom: 8px; left: 8px; right: 8px; 
-           color:#0f0; font: 14px/1.4 system-ui, sans-serif; opacity:.85; }
+    body, html { margin:0; padding:0; height:100%; background:#000; }
+    #tap { position:fixed; inset:auto 0 20px 0; display:flex; justify-content:center; }
+    #tap button {
+      padding:10px 16px; font-size:16px; border-radius:8px; border:0;
+      background:#1a73e8; color:#fff;
+    }
   </style>
 </head>
 <body>
-  <!-- Escena sin VR UI y embebida, con AR.js desde webcam -->
   <a-scene
     vr-mode-ui="enabled: false"
     embedded
-    renderer="antialias: true; alpha: true"
-    arjs="sourceType: webcam; debugUIEnabled: false; 
-          trackingMethod: best; 
-          sourceWidth: 1280; sourceHeight: 720;">
+    renderer="antialias: true"
+    arjs="trackingMethod: best; sourceType: webcam; facingMode: environment;
+          sourceWidth:1280; sourceHeight:720; displayWidth:1280; displayHeight:720;">
     
-    <!-- Cámara AR.js -->
-    <a-entity camera></a-entity>
-
-    <!-- Ejemplo: modelo/box sobre marcador Hiro -->
-    <a-marker type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/patt.hiro">
-      <a-box position="0 0.5 0" depth="0.5" height="0.5" width="0.5" rotation="0 45 0"></a-box>
+    <!-- Marker Hiro clásico -->
+    <a-marker preset="hiro">
+      <a-box position="0 0.5 0" material="opacity:0.8"></a-box>
     </a-marker>
 
-    <a-entity camera></a-entity> <!-- Asegúrate de tener SOLO UNA cámara. Si ves dos, borra una. -->
+    <a-entity camera></a-entity>
   </a-scene>
 
-  <div class="hud" id="status">cargando… da permiso a la cámara</div>
+  <!-- Botón de “tap para iniciar” por si el autoplay no arranca en móviles -->
+  <div id="tap"><button type="button">Toca para iniciar cámara</button></div>
 
   <script>
-    // Opcional: ver si el navegador permite y qué cámara elegiría
-    (async () => {
-      const status = document.getElementById('status');
-      try {
-        // Test breve para forzar permisos (evita si ya confías en AR.js)
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }
-        });
-        stream.getTracks().forEach(t => t.stop());
-        status.textContent = 'cámara lista ✔️';
-      } catch (e) {
-        status.textContent = 'error cámara: ' + (e && e.name ? e.name : e);
+    // Oculta el botón cuando el video esté reproduciendo
+    function tryPlay() {
+      const v = document.querySelector('video');
+      if (v) {
+        v.setAttribute('playsinline', ''); // iOS
+        v.setAttribute('webkit-playsinline', ''); // iOS viejo
+        v.muted = true; // políticas autoplay
+        v.play().catch(()=>{ /* ignorar */ });
       }
-    })();
+    }
+
+    document.querySelector('#tap button').addEventListener('click', () => {
+      tryPlay();
+      // Si arranca, ocultamos
+      setTimeout(() => {
+        const v = document.querySelector('video');
+        if (v && !v.paused && !v.ended) {
+          document.getElementById('tap').style.display = 'none';
+        }
+      }, 500);
+    });
+
+    // Reintento automático en load
+    window.addEventListener('load', () => setTimeout(tryPlay, 700));
+    // Un toque más por seguridad cuando el usuario interactúe
+    window.addEventListener('touchend', tryPlay, { once:true });
   </script>
 </body>
 </html>
