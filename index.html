@@ -2,10 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>AR.js — iOS stable (Hiro)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+  <title>AR.js — fix resolución (Hiro)</title>
 
-  <!-- 1) Cargar A-Frame ANTES que AR.js (evita EventDispatcher undefined) -->
+  <!-- A-Frame primero, luego AR.js -->
   <script src="https://unpkg.com/aframe@1.4.2/dist/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
 
@@ -15,30 +15,31 @@
     #btn{appearance:none;border:0;background:#16a34a;color:#fff;padding:12px 18px;border-radius:10px;font-weight:700;font-size:16px}
     #ui{position:fixed;left:8px;top:8px;z-index:10;background:rgba(0,0,0,.55);padding:8px 10px;border-radius:8px;display:none}
     #log{position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,.6);color:#0f0;padding:8px;border-radius:8px;font:12px/1 monospace;z-index:9999}
-    a-scene{width:100%;height:100vh;display:none;} /* mostramos tras el tap */
+    a-scene{width:100%;height:100vh;display:none}
   </style>
 </head>
 <body>
-
-  <!-- Overlay para forzar user-gesture en iOS -->
   <div id="overlay">
     <h2 style="margin:0">Toca para iniciar AR</h2>
-    <div style="opacity:.8">iPhone necesita un gesto para activar la cámara.</div>
+    <div style="opacity:.8">Forzaremos 640×480 para evitar pantalla negra.</div>
     <button id="btn">Iniciar</button>
   </div>
 
-  <div id="ui">
-    <b>AR.js — Hiro</b><br/>Permite la cámara y apunta al marcador HIRO.
-  </div>
+  <div id="ui"><b>AR.js — Hiro</b><br/>Apunta al marcador HIRO.</div>
   <div id="log">Listo…</div>
 
-  <!-- 2) Escena ya en el DOM (sin inyectar por JS) -->
+  <!-- Escena en el DOM (no se inyecta por innerHTML) -->
   <a-scene id="scene"
     embedded
-    renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
-    arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false">
+    renderer="antialias: true; precision: mediump; colorManagement: true; physicallyCorrectLights: true"
+    arjs="
+      trackingMethod: best;
+      sourceType: webcam;
+      debugUIEnabled: false;
+      sourceWidth: 640; sourceHeight: 480;
+      displayWidth: 640; displayHeight: 480;
+    ">
 
-    <!-- 3) Empieza con Hiro para validar -->
     <a-marker preset="hiro">
       <a-box position="0 0.5 0" depth="0.5" height="0.5" width="0.5" color="red"></a-box>
     </a-marker>
@@ -54,33 +55,37 @@
     const logBox  = document.getElementById('log');
     const log = m => { console.log(m); logBox.textContent = m; };
 
-    // 4) Solo mostramos la escena tras el gesto (tap)
     btn.addEventListener('click', () => {
       overlay.style.display = 'none';
-      scene.style.display = 'block';
-      ui.style.display = 'block';
-      log('Inicializando cámara…');
+      scene.style.display   = 'block';
+      ui.style.display      = 'block';
+      log('Inicializando cámara a 640×480…');
 
-      // 5) Esperar a que AR.js cree el <video> interno y monitorearlo
-      let tries=0;
-      const iv = setInterval(()=>{
+      // Espera a que AR.js genere su <video id="arjs-video"> y verifica tamaños
+      let tries = 0;
+      const iv = setInterval(() => {
         const vid = document.querySelector('video'); // AR.js crea uno
         tries++;
-        if (vid){
+        if (vid) {
           clearInterval(iv);
           vid.setAttribute('playsinline','');
           vid.setAttribute('muted','');
-          vid.addEventListener('loadedmetadata', ()=>log('✅ video loadedmetadata'));
-          vid.addEventListener('canplay', ()=>log('✅ video canplay (hay frames)'));
-          setTimeout(()=>{
-            const rs=['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'];
-            log('readyState='+(rs[vid.readyState]||vid.readyState));
+          vid.addEventListener('loadedmetadata', () => {
+            log(`✅ video loadedmetadata — ${vid.videoWidth}×${vid.videoHeight}`);
+          });
+          vid.addEventListener('canplay', () => {
+            log(`✅ canplay — ${vid.videoWidth}×${vid.videoHeight}`);
+          });
+          // Si el dispositivo entrega 12MP, aun así AR.js reescala al canvas 640×480
+          setTimeout(() => {
+            const states=['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'];
+            log(`readyState=${states[vid.readyState]||vid.readyState} — ${vid.videoWidth}×${vid.videoHeight}`);
           }, 1200);
-        } else if (tries>40) {
+        } else if (tries > 40) {
           clearInterval(iv);
           log('❌ No se encontró video (AR.js no inicializó la cámara)');
         }
-      },100);
+      }, 100);
     });
   </script>
 </body>
