@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
-  <title>WebAR Fireworks — MindAR + A-Frame (debug)</title>
+  <title>WebAR Fireworks — MindAR + A-Frame (iOS tap fix + debug)</title>
 
   <!-- A-Frame y MindAR desde CDN -->
   <script src="https://unpkg.com/aframe@1.4.2/dist/aframe.min.js"></script>
@@ -11,44 +11,164 @@
 
   <style>
     html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;}
-    #ui{position:fixed;left:8px;top:8px;z-index:10;background:rgba(0,0,0,.55);padding:8px 10px;border-radius:8px;backdrop-filter: blur(4px);}
+    #ui{position:fixed;left:8px;top:8px;z-index:10;background:rgba(0,0,0,.55);padding:8px 10px;border-radius:8px;backdrop-filter: blur(4px); display:none;}
     #ui b{display:block;margin-bottom:4px}
     #status{position:fixed;right:8px;bottom:8px;z-index:9999;background:rgba(0,0,0,.6);color:#0f0;padding:6px 8px;border-radius:6px;font:12px/1.2 monospace;min-width:160px}
-    a-scene{width:100%;height:100vh;}
+    a-scene{width:100%;height:100vh;display:none;}
+    /* Pantalla inicial para forzar user-gesture en iOS */
+    #start-screen{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:99999;text-align:center;padding:24px}
+    #start-btn{appearance:none;border:none;background:#16a34a;color:#fff;padding:12px 18px;border-radius:10px;font-weight:700;font-size:16px}
+    #start-btn:active{transform:scale(.98)}
+    .hint{opacity:.85;font-size:12px}
   </style>
 </head>
 <body>
-  <div id="start-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;
-      background:black;color:white;display:flex;flex-direction:column;
-      justify-content:center;align-items:center;z-index:9999;">
-    <h2>Toca para iniciar AR 🔥</h2>
-    <p style="font-size:14px;opacity:0.8;">Safari necesita una acción para activar la cámara.</p>
+  <!-- Pantalla inicial (tap requerido en iOS para habilitar cámara) -->
+  <div id="start-screen">
+    <h2 style="margin:0 0 8px 0">Toca para iniciar AR 🔥</h2>
+    <div class="hint">Safari en iPhone requiere una acción del usuario para activar la cámara.</div>
+    <button id="start-btn">Iniciar</button>
   </div>
 
-  <div id="ui" style="display:none;">
+  <!-- UI de ayuda -->
+  <div id="ui">
     <b>WebAR Fireworks</b>
-    <br>1) Permite la cámara.<br>2) Apunta a la imagen objetivo.
+    1) Permite la cámara.<br/>
+    2) Apunta a la imagen objetivo.<br/>
+    <div class="hint">Tip: buena luz y la imagen nítida.</div>
   </div>
+  <div id="status">Log…</div>
 
-  <!-- Escena oculta hasta tocar -->
-  <a-scene id="scene" embedded
+  <!-- Escena AR (se muestra tras el tap) -->
+  <a-scene id="scene"
     mindar-image="imageTargetSrc: ./assets/targets.mind; maxTrack: 1;"
+    embedded
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights: true, antialias: true"
-    vr-mode-ui="enabled: false"
-    style="display:none;">
+    vr-mode-ui="enabled: false">
+
+    <!-- Cámara AR -->
     <a-camera position="0 0 0"></a-camera>
-    <a-entity mindar-image-target="targetIndex: 0">
-      <a-box color="red" position="0 0 0.2" depth="0.1" height="0.3" width="0.3"></a-box>
+
+    <!-- Contenido anclado al target (index 0) -->
+    <a-entity id="anchor" mindar-image-target="targetIndex: 0">
+      <!-- 🔴 Caja de prueba: si la ves, el tracking funciona -->
+      <a-box position="0 0 0.2" depth="0.1" height="0.3" width="0.3" color="red"></a-box>
+
+      <!-- 🎆 Fuegos crudos con Three.js -->
+      <a-entity id="fw" fireworks-raw="particles: 900; life: 1400; fadeStart: 800; gravity: -0.9; burstInterval: 1400"
+                position="0 0 0"></a-entity>
     </a-entity>
   </a-scene>
 
+  <!-- Componente de partículas “raw” -->
   <script>
-    document.getElementById('start-screen').addEventListener('click', () => {
-      document.getElementById('start-screen').style.display = 'none';
-      document.getElementById('scene').style.display = 'block';
-      document.getElementById('ui').style.display = 'block';
-    });
+  AFRAME.registerComponent('fireworks-raw', {
+    schema: {
+      particles:     { default: 700 },
+      life:          { default: 1300 },
+      fadeStart:     { default: 800 },
+      gravity:       { default: -0.8 },
+      burstInterval: { default: 1500 }
+    },
+    init() {
+      const group = new THREE.Group();
+      this.el.setObject3D('fw', group);
+      this.group = group;
+      this.running = true;
+      this.nextBurst = 0;
+      this.makeBurst(performance.now());
+    },
+    remove() { this.el.removeObject3D('fw'); },
+    makeBurst(now) {
+      const n = this.data.particles;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(n * 3);
+      const vel = new Float32Array(n * 3);
+      for (let i=0;i<n;i++){
+        pos[3*i+0]=0; pos[3*i+1]=0; pos[3*i+2]=0;
+        const r = 1 + Math.random()*1.6;
+        const u = Math.random(), v = Math.random();
+        const theta = Math.acos(2*u - 1);
+        const phi = 2*Math.PI*v;
+        vel[3*i+0] = r*Math.sin(theta)*Math.cos(phi);
+        vel[3*i+1] = r*Math.cos(theta);
+        vel[3*i+2] = r*Math.sin(theta)*Math.sin(phi);
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('velocity', new THREE.BufferAttribute(vel, 3));
+      const mat = new THREE.PointsMaterial({ size: 0.05, transparent:true, opacity:1 });
+      const points = new THREE.Points(geo, mat);
+      points.userData.birth = now;
+      this.group.add(points);
+    },
+    tick(time, dt) {
+      if (!this.running || !dt) return;
+      const g = this.group;
+      const gravity   = this.data.gravity;
+      const life      = this.data.life;
+      const fadeStart = this.data.fadeStart;
+
+      for (let i=g.children.length-1; i>=0; i--){
+        const p = g.children[i];
+        const geo = p.geometry;
+        const pos = geo.attributes.position.array;
+        const vel = geo.attributes.velocity.array;
+        for (let j=0;j<vel.length/3;j++){
+          vel[3*j+1] += gravity*(dt/1000);
+          pos[3*j+0] += vel[3*j+0]*(dt/1000);
+          pos[3*j+1] += vel[3*j+1]*(dt/1000);
+          pos[3*j+2] += vel[3*j+2]*(dt/1000);
+        }
+        geo.attributes.position.needsUpdate = true;
+
+        const age = time - p.userData.birth;
+        if (age > fadeStart) p.material.opacity = Math.max(0, 1 - (age - fadeStart)/(life - fadeStart));
+        if (age > life) {
+          g.remove(p); geo.dispose(); p.material.dispose();
+        }
+      }
+      if (time >= this.nextBurst){
+        this.makeBurst(time);
+        this.nextBurst = time + this.data.burstInterval;
+      }
+    },
+    pause(){ this.running = false; },
+    play(){  this.running = true;  }
+  });
+  </script>
+
+  <!-- Lógica: tap-to-start + debug -->
+  <script>
+  const scene   = document.getElementById('scene');
+  const ui      = document.getElementById('ui');
+  const status  = document.getElementById('status');
+  const start   = document.getElementById('start-screen');
+  const startBtn= document.getElementById('start-btn');
+  const log = (m)=>{ console.log(m); status.textContent = m; };
+
+  // Mostrar escena tras tap (user gesture requerido por iOS)
+  startBtn.addEventListener('click', () => {
+    start.style.display = 'none';
+    scene.style.display = 'block';
+    ui.style.display    = 'block';
+  });
+
+  window.addEventListener('load', () => {
+    const anchor = document.getElementById('anchor');
+    const fw     = document.getElementById('fw');
+
+    scene.addEventListener('arReady', () => log('arReady: cámara OK'));
+    scene.addEventListener('arError', (e) => log('arError: ' + (e?.detail?.message||'ver consola')));
+
+    anchor.addEventListener('targetFound', () => { log('targetFound ✅'); fw.play();  });
+    anchor.addEventListener('targetLost',  () => { log('targetLost ⭕');  fw.pause(); });
+
+    // Verifica disponibilidad del target
+    fetch('./assets/targets.mind')
+      .then(r => log('targets.mind: HTTP '+r.status))
+      .catch(err => log('fetch error '+err));
+  });
   </script>
 </body>
 </html>
