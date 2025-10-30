@@ -1,50 +1,67 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-  <title>AR.js Test - Hiro</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>AR.js — iOS Tap Start (Hiro)</title>
 
-  <!-- A-Frame + AR.js (build aframe) -->
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+  <!-- A-Frame + AR.js build (incluye A-Frame) -->
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
 
   <style>
-    html,body { margin:0; height:100%; background:#000; color:#fff; font-family:system-ui; }
-    #ui { position:fixed; left:8px; top:8px; z-index:10; background:rgba(0,0,0,.55); padding:8px 10px; border-radius:8px; }
+    html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto}
+    #start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#000;z-index:9999;text-align:center;padding:24px}
+    #btn{appearance:none;border:0;background:#16a34a;color:#fff;padding:12px 18px;border-radius:10px;font-weight:700;font-size:16px}
+    #ui{position:fixed;left:8px;top:8px;z-index:10;background:rgba(0,0,0,.55);padding:8px 10px;border-radius:8px}
+    #hint{font-size:12px;opacity:.85}
   </style>
 </head>
 <body>
-  <div id="ui">
-    <b>AR.js (Hiro)</b><br>
-    1) Permite la cámara.<br>
-    2) Apunta al marcador <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/three.js/examples/marker-training/examples/pattern-files/hiro.png" target="_blank" style="color:#0bf;">HIRO</a>.
+
+  <!-- Tap-to-start para iOS -->
+  <div id="start">
+    <h2 style="margin:0">Toca para iniciar AR</h2>
+    <div id="hint">Safari requiere una acción del usuario para activar la cámara.</div>
+    <button id="btn">Iniciar</button>
   </div>
 
-  <a-scene
-    vr-mode-ui="enabled:false"
-    embedded
-    arjs="sourceType: webcam; detectionMode: mono; debugUIEnabled: false;">
-    
-    <!-- Cámara AR.js -->
-    <a-entity camera></a-entity>
+  <div id="ui" style="display:none">
+    <b>AR.js — Prueba iOS (Hiro)</b><br/>
+    1) Permite la cámara.<br/>
+    2) Apunta al <u>marcador HIRO</u> (muéstralo en otra pantalla o impreso).
+  </div>
 
-    <!-- Marcador Hiro (no necesitas archivos) -->
-    <a-marker preset="hiro">
-      <!-- Caja roja para verificar tracking -->
-      <a-box color="red" position="0 0.5 0" depth="0.2" height="0.2" width="0.2"></a-box>
+  <div id="root"></div>
 
-      <!-- Mini “fuegos” simples con partículas del propio A-Frame (sin librerías extra) -->
-      <a-entity position="0 0.2 0"
-                particle-system="preset: burst; particleCount: 400; size: 0.05; velocitySpread: 1 1 1; duration: 1.2;">
-      </a-entity>
-    </a-marker>
+  <script>
+    const root = document.getElementById('root');
+    const start = document.getElementById('start');
+    const ui = document.getElementById('ui');
 
-    <!-- Para que no se vea nada sin marcador -->
-    <a-entity id="no-marker"></a-entity>
-  </a-scene>
+    document.getElementById('btn').addEventListener('click', () => {
+      // Oculta overlay y muestra UI
+      start.style.display = 'none';
+      ui.style.display = 'block';
 
-  <!-- Partículas (opcional, pero simpáticas) -->
-  <script src="https://unpkg.com/aframe-particle-system-component/dist/aframe-particle-system-component.min.js"></script>
+      // Inyecta la escena *después* del tap (desbloquea cámara en iOS)
+      root.innerHTML = `
+        <a-scene
+          embedded
+          renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
+          arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false">
+
+          <!-- Marcador Hiro (no necesitas archivos) -->
+          <a-marker preset="hiro">
+            <a-box position="0 0.5 0" depth="0.5" height="0.5" width="0.5" color="red"></a-box>
+            <a-entity position="0 1 0" animation="property: position; to: 0 1.4 0; dir: alternate; loop: true; dur: 700">
+              <a-sphere radius="0.06" color="#FFD54F"></a-sphere>
+            </a-entity>
+          </a-marker>
+
+          <a-entity camera></a-entity>
+        </a-scene>
+      `;
+    });
+  </script>
 </body>
 </html>
